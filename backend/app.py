@@ -22,7 +22,7 @@ OUTPUT_DIR = 'output'
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
-print(f"Gemini API key received: {api_key}")
+print("Gemini API key loaded successfully.")
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
@@ -49,15 +49,16 @@ def process_with_gemini(data):
         print("Empty response from Gemini.")
         return data  # Return original data if response is empty
 
-    print("Gemini response:")
-    print(response.text)
+print("Gemini response:")
+print(response.text)
 
-    try:
-        cleaned_data = json.loads(response.text.strip())
-        return cleaned_data
-    except json.JSONDecodeError:
-        print("Failed to parse Gemini response as JSON. Using original data.")
-        return data
+try:
+    cleaned_data = json.loads(response.text.strip())
+except json.JSONDecodeError:
+    print("Gemini returned non-JSON response. Attempting to extract structured data.")
+    cleaned_data = {"formatted_text": response.text.strip()}
+return cleaned_data
+
 
 # def compile_latex(tex_content) :
 #     try:
