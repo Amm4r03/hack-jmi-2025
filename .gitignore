@@ -1,0 +1,11 @@
+**.env
+__pycache__
+**.aux
+**.fdb_latexmk
+**.fls
+**.out
+**.synctex.gz
+**.log
+todo.txt
+
+misc
