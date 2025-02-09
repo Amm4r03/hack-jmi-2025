@@ -6,9 +6,9 @@ Create LaTeX generated ATS friendly with ease
 ## Overview
 **Res(t)YouMay** is an **ATS-friendly resume builder** that simplifies the process of creating professional resumes. By leveraging the **Gemini API**, it **cleans and optimizes user-provided data**, ensuring **higher chances** of passing automated screening systems and impressing HR managers. The app provides a **simple form-based interface**, generates a well-structured **PDF resume**, and allows users to download it instantly. The app allows user to also download the LaTeX source for the PDF generated so that they can make minor changes in case any are required rather than repeating the entire process once again.
 
-![demo](demo%20imgs/form_1.jpg)
-![demo](demo%20imgs/preview.jpg)
-![demo](demo%20imgs/resume_generated.jpg)
+![demo](demo/form_1.jpg)
+![demo](demo/preview.jpg)
+![demo](demo/resume_generated.jpg)
 
 ---
 
