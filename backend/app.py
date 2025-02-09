@@ -53,7 +53,7 @@ def process_with_gemini(data):
     print(response.text)
 
     try:
-        cleaned_data = json.loads(response.text.strip())
+        cleaned_data = json.loads(response.text.replace("```", '').replace('json', '').strip())
     except json.JSONDecodeError:
         print("Gemini returned non-JSON response. Attempting to extract structured data.")
         cleaned_data = {"formatted_text": response.text.strip()}
@@ -71,6 +71,7 @@ def compile_latex(tex_content) :
                 'pdflatex',
                 '-interaction=nonstopmode',
                 '-halt-on-error',
+                '-file-line-error',
                 f'-output-directory={OUTPUT_DIR}',
                 tex_path
             ],
@@ -155,16 +156,55 @@ def generate_resume():
                 'latex_source': latex_content
             }), 500
 
-        # Encode PDF to base64 for response
-        pdf_b64 = base64.b64encode(result).decode('utf-8')
+        # Read the generated PDF file
+        pdf_path = os.path.join(OUTPUT_DIR, 'resume.pdf')
+        with open(pdf_path, 'rb') as pdf_file:
+            pdf_content = pdf_file.read()
+        
+        # Encode PDF to base64
+        pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
         
         return jsonify({
-            'pdf': pdf_b64,
-            'latex': latex_content
+            'latex_source': latex_content,
+            'pdf_base64': pdf_base64
         })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# @app.route('/generate-resume', methods=['POST'])
+# def generate_resume():
+#     data = request.json
+#     if not data:
+#         return jsonify({'error': 'No input data provided'}), 400
+
+#     try:
+#         # Process data with Gemini
+#         cleaned_data = process_with_gemini(data)
+        
+#         # Create LaTeX content
+#         latex_content = create_latex_content(cleaned_data)
+        
+#         # Compile LaTeX to PDF
+#         success, result = compile_latex(latex_content)
+        
+#         if not success:
+#             return jsonify({
+#                 'error': 'LaTeX compilation failed',
+#                 'details': result,
+#                 'latex_source': latex_content
+#             }), 500
+
+#         # Encode PDF to base64 for response
+#         pdf_b64 = base64.b64encode(result).decode('utf-8')
+        
+#         return jsonify({
+#             'pdf': pdf_b64,
+#             'latex': latex_content
+#         })
+
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
     
 # def create_latex_content(data):
 #     """
@@ -227,74 +267,158 @@ def generate_resume():
 
 #     return template
 
-# Modified create_latex_content function
-def create_latex_content(data : dict):
+def create_latex_content(data: dict):
     with open('templates/resume_template.tex', 'r') as file:
         template = file.read()
 
     # Basic replacements
     replacements = {
-        'NAME': data.get('name', ''),
-        'LOCATION': data.get('location', ''),
-        'PHONE': data.get('phone', ''),
-        'EMAIL': data.get('email', ''),
-        'LINKEDIN': data.get('linkedin', '').split('/')[-1],  # Just handle username
-        'GITHUB': data.get('github', '').split('/')[-1]
+        'NAME': data.get('name', '').replace('_', ' '),  # Prevent underscore issues
+        'LOCATION': data.get('location', '').replace('_', ' '),
+        'PHONE': data.get('phone', '').replace('_', ' '),
+        'EMAIL': data.get('email', '').replace('_', ' '),
+        'LINKEDIN': data.get('linkedin', '').split('/')[-1].replace('_', ' '),
+        'GITHUB': data.get('github', '').split('/')[-1].replace('_', ' ')
     }
 
     for placeholder, value in replacements.items():
-        template = template.replace(placeholder, str(value))
+        # Escape special LaTeX characters
+        value = value.replace('&', '\\&').replace('%', '\\%').replace('$', '\\$')
+        template = template.replace(placeholder, value)
 
     # Experience Section
-    experience = []
+    experience_items = []
     for exp in data.get('experience', []):
-        experience.append(f"""
-\\resumeSubheading
-{{{exp.get('company', '')}}}
-{{{exp.get('date', '')}}}
-{{{exp.get('title', '')}}}
-{{{exp.get('location', '')}}}
-\\resumeItemListStart
-{''.join([f'\\resumeItem{{{item}}}' for item in exp.get('description', [])])}
-\\resumeItemListEnd
-""")
-    template = template.replace('EXPERIENCE_PLACEHOLDER', '\n'.join(experience))
+        experience_items.append(f"""
+        \\resumeSubheading
+        {{{exp.get('company', '').replace('_', ' ')}}}
+        {{{exp.get('date', '').replace('_', ' ')}}}
+        {{{exp.get('title', '').replace('_', ' ')}}}
+        {{{exp.get('location', '').replace('_', ' ')}}}
+        \\resumeItemListStart
+        \\resumeItem{{{exp.get('description', '').replace('_', ' ')}}}
+        \\resumeItemListEnd""")
+    
+    experience_content = '\n'.join(experience_items)
+    template = template.replace('EXPERIENCE_PLACEHOLDER', experience_content)
 
     # Education Section
-    education = []
+    education_items = []
     for edu in data.get('education', []):
-        education.append(f"""
-\\resumeSubheading
-{{{edu.get('school', '')}}}
-{{{edu.get('date', '')}}}
-{{{edu.get('degree', '')}}}
-{{{edu.get('location', '')}}}
-""")
-    template = template.replace('EDUCATION_PLACEHOLDER', '\n'.join(education))
+        education_items.append(f"""
+        \\resumeSubheading
+        {{{edu.get('school', '').replace('_', ' ')}}}
+        {{{edu.get('date', '').replace('_', ' ')}}}
+        {{{edu.get('degree', '').replace('_', ' ')}}}
+        {{{edu.get('location', '').replace('_', ' ')}}}""")
+    
+    education_content = '\n'.join(education_items)
+    template = template.replace('EDUCATION_PLACEHOLDER', education_content)
 
     # Projects Section
-    projects = []
+    project_items = []
     for proj in data.get('projects', []):
-        projects.append(f"""
-\\resumeProjectHeading
-{{{proj.get('name', '')}}} $|$ {{{proj.get('technologies', '')}}}
-\\resumeItemListStart
-\\resumeItem{{{proj.get('description', '')}}}
-\\resumeItemListEnd
-""")
-    template = template.replace('PROJECTS_PLACEHOLDER', '\n'.join(projects))
+        project_items.append(f"""
+        \\resumeProjectHeading
+        {{{proj.get('name', '').replace('_', ' ')}}} {{{proj.get('technologies', '').replace('_', ' ')}}}
+        \\resumeItemListStart
+        \\resumeItem{{{proj.get('description', '').replace('_', ' ')}}}
+        \\resumeItemListEnd""")
+    
+    project_content = '\n'.join(project_items)
+    template = template.replace('PROJECTS_PLACEHOLDER', project_content)
 
-    # Skills Section
-    # skills = ' $\\textbullet$ '.join(data.get('skills', []))
-    # skills = 
-    # template = template.replace('SKILLS_PLACEHOLDER', skills)
-    skills = data.get('skills', '').replace(',', ' \\textbullet{} ')
+    # Skills Section - Properly format with bullet points
+    skills = data.get('skills', '')
+    if isinstance(skills, list):
+        skills = ' \\textbullet{} '.join(skills)
+    elif isinstance(skills, str):
+        # If it's already a string, make sure bullets are properly formatted
+        skills = skills.replace(',', ' \\textbullet{} ').replace('•', '\\textbullet{}')
+    
+    # Escape any special characters in skills
+    skills = skills.replace('&', '\\&').replace('%', '\\%').replace('$', '\\$').replace('_', ' ')
     template = template.replace('SKILLS_PLACEHOLDER', skills)
 
     return template
 
+
+# Modified create_latex_content function
+# def create_latex_content(data : dict):
+#     with open('templates/resume_template.tex', 'r') as file:
+#         template = file.read()
+
+#     # Basic replacements
+#     replacements = {
+#         'NAME': data.get('name', ''),
+#         'LOCATION': data.get('location', ''),
+#         'PHONE': data.get('phone', ''),
+#         'EMAIL': data.get('email', ''),
+#         'LINKEDIN': data.get('linkedin', '').split('/')[-1],  # Just handle username
+#         'GITHUB': data.get('github', '').split('/')[-1]
+#     }
+
+#     for placeholder, value in replacements.items():
+#         template = template.replace(placeholder, str(value))
+
+#     # Experience Section
+#     # experience = []
+# #     for exp in data.get('experience', []):
+# #         experience.append(f"""
+# # \\resumeSubheading
+# # {{{exp.get('company', '')}}}
+# # {{{exp.get('date', '')}}}
+# # {{{exp.get('title', '')}}}
+# # {{{exp.get('location', '')}}}
+# # \\resumeItemListStart
+# # {''.join([f'\\resumeItem{{{item}}}' for item in exp.get('description', [])])}
+# # \\resumeItemListEnd
+# # """)
+#     experience = '\n'.join(f"""
+#         \\resumeSubheading
+#         {{{exp.get('company', '')}}}
+#         {{{exp.get('date', '')}}}
+#         {{{exp.get('title', '')}}}
+#         {{{exp.get('location', '')}}}
+#         \\resumeItemListStart
+#         \\resumeItem{{{exp.get('description', '')}}}
+#         \\resumeItemListEnd
+#     """ for exp in data.get('experience', []))
+    
+#     template = template.replace('EXPERIENCE_PLACEHOLDER', experience)
+
+#     # Education Section
+#     education = []
+#     for edu in data.get('education', []):
+#         education.append(f"""
+# \\resumeSubheading
+# {{{edu.get('school', '')}}}
+# {{{edu.get('date', '')}}}
+# {{{edu.get('degree', '')}}}
+# {{{edu.get('location', '')}}}
+# """)
+#     template = template.replace('EDUCATION_PLACEHOLDER', '\n'.join(education))
+
+#     # Projects Section
+#     projects = []
+#     for proj in data.get('projects', []):
+#         projects.append(f"""
+# \\resumeProjectHeading
+# {{{proj.get('name', '')}}} {{{proj.get('technologies', '')}}}
+# \\resumeItemListStart
+# \\resumeItem{{{proj.get('description', '')}}}
+# \\resumeItemListEnd
+# """)
+    
+#     template = template.replace('PROJECTS_PLACEHOLDER', '\n'.join(projects))
+
+#     skills = data.get('skills', '').replace(',', ' \\textbullet{} ')
+#     template = template.replace('SKILLS_PLACEHOLDER', skills)
+
+#     return template
+
 # @app.route('/generate-resume', methods=['POST'])
-# def generate_resume():
+# def generate_resume():    
 #     """
 #     API endpoint to generate a resume PDF from JSON input.
 #     """
@@ -354,7 +478,12 @@ def download_pdf():
     """
     pdf_path = os.path.join(OUTPUT_DIR, 'resume.pdf')
     if os.path.exists(pdf_path):
-        return send_file(pdf_path, as_attachment=True)
+        return send_file(
+            pdf_path,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name='resume.pdf'
+        )
     return jsonify({'error': 'PDF not found'}), 404
 
 if __name__ == '__main__':
