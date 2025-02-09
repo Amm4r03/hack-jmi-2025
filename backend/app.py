@@ -13,7 +13,6 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Configure Gemini API
 api_key = os.getenv('GEMINI_API_KEY')
 if not api_key:
     raise ValueError("Gemini API key is missing. Ensure it is set in the environment variables.")
@@ -31,10 +30,11 @@ def process_with_gemini(data):
     Process the resume data using Gemini API to clean and format it.
     """
     prompt = f"""
-    Clean and format the following resume data professionally.
-    Ensure all details are well-structured and use an 'action - change - effect' format.
+    Clean and format the following resume data professionally. 
+    Return a JSON object of the same structure and 
+    ensure all details are in their original structure and use an 'action - change - effect' format.
     Keep all sections and formatting intact.
-    Ignore if any field is empty and do not raise any errors.
+    Ignore if any field is empty and do not raise any other messages.
 
     Input data:
     {json.dumps(data, indent=2)}
@@ -59,75 +59,76 @@ def process_with_gemini(data):
         print("Failed to parse Gemini response as JSON. Using original data.")
         return data
 
-# def compile_latex(tex_content) :
-#     try:
-#         tex_path = os.path.join(OUTPUT_DIR, 'resume.tex')
-#         with open(tex_path, 'w', encoding='utf-8') as f:
-#             f.write(tex_content)
+def compile_latex(tex_content) :
+    try:
+        tex_path = os.path.join(OUTPUT_DIR, 'resume.tex')
+        with open(tex_path, 'w', encoding='utf-8') as f:
+            f.write(tex_content)
         
-#         process = subprocess.run(
-#             [
-#                 'pdflatex',
-#                 '-interaction=nonstopmode',
-#                 '-halt-on-error',
-#                 f'-output-directory={OUTPUT_DIR}',
-#                 tex_path
-#             ],
-#             capture_output=True,
-#             text=True,
-#             check=False
-#         )
+        process = subprocess.run(
+            [
+                'pdflatex',
+                '-interaction=nonstopmode',
+                '-halt-on-error',
+                f'-output-directory={OUTPUT_DIR}',
+                tex_path
+            ],
+            capture_output=True,
+            text=True,
+            check=False
+        )
         
-#         pdf_path = os.path.join(OUTPUT_DIR, 'resume.pdf')
+        pdf_path = os.path.join(OUTPUT_DIR, 'resume.pdf')
+        print(pdf_path)
         
-#         if os.path.exists(pdf_path):
-#             return True, pdf_path
+        if os.path.exists(pdf_path):
+            return True, pdf_path
         
-#         log_path = os.path.join(OUTPUT_DIR, 'resume.log')
-#         if os.path.exists(log_path):
-#             with open(log_path, 'r', encoding='utf-8') as f:
-#                 log_content = f.read()
-#         else:
-#             log_content = "no log file generated"
+        log_path = os.path.join(OUTPUT_DIR, 'resume_generation.log')
+        if os.path.exists(log_path):
+            with open(log_path, 'r', encoding='utf-8') as f:
+                log_content = f.read()
+        else:
+            log_content = "no log file generated"
         
-#         return False, f"LaTeX error : {process.stderr}\n\nLog : {log_content}"
-#     except Exception as e:
-#         return False, str(e) 
+        return False, f"LaTeX error : {process.stderr}\n\nLog : {log_content}"
+    except Exception as e:
+        return False, str(e) 
 
 # Modified compile_latex function
-def compile_latex(tex_content):
-    try:
-        # Create temporary directory
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tex_path = os.path.join(tmpdir, 'resume.tex')
-            pdf_path = os.path.join(tmpdir, 'resume.pdf')
+# def compile_latex(tex_content):
+#     try:
+#         # Create temporary directory
+#         with tempfile.TemporaryDirectory() as tmpdir:
+#             tex_path = os.path.join(tmpdir, 'resume.tex')
+#             pdf_path = os.path.join(tmpdir, 'resume.pdf')
             
-            # Write LaTeX content
-            with open(tex_path, 'w', encoding='utf-8') as f:
-                f.write(tex_content)
+#             # Write LaTeX content
+#             with open(tex_path, 'w', encoding='utf-8') as f:
+#                 f.write(tex_content)
 
-            # Compile LaTeX
-            result = subprocess.run(
-                ['pdflatex', '-interaction=nonstopmode', '-output-directory', tmpdir, tex_path],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+#             # Compile LaTeX
+#             result = subprocess.run(
+#                 ['pdflatex', '-interaction=nonstopmode', '-output-directory', tmpdir, tex_path],
+#                 capture_output=True,
+#                 text=True,
+#                 timeout=30
+#             )
 
-            if result.returncode != 0:
-                return False, f"LaTeX Error:\n{result.stderr}"
+#             if result.returncode != 0:
+#                 return False, f"LaTeX Error:\n{result.stderr}"
 
-            if not os.path.exists(pdf_path):
-                return False, "PDF generation failed - no output file"
+#             if not os.path.exists(pdf_path):
+#                 return False, "PDF generation failed - no output file"
 
-            # Read PDF content
-            with open(pdf_path, 'rb') as f:
-                pdf_content = f.read()
+#             # Read PDF content
+#             with open(pdf_path, 'rb') as f:
+#                 pdf_content = f.read()
 
-            return True, pdf_content
+#             return True, pdf_content
 
-    except Exception as e:
-        return False, str(e)
+#     except Exception as e:
+#         return False, str(e)
 
 # Modified generate_resume endpoint
 @app.route('/generate-resume', methods=['POST'])
@@ -226,7 +227,7 @@ def generate_resume():
 #     return template
 
 # Modified create_latex_content function
-def create_latex_content(data):
+def create_latex_content(data : dict):
     with open('templates/resume_template.tex', 'r') as file:
         template = file.read()
 
@@ -249,8 +250,8 @@ def create_latex_content(data):
         experience.append(f"""
 \\resumeSubheading
 {{{exp.get('company', '')}}}
-{{{exp.get('dates', '')}}}
-{{{exp.get('position', '')}}}
+{{{exp.get('date', '')}}}
+{{{exp.get('title', '')}}}
 {{{exp.get('location', '')}}}
 \\resumeItemListStart
 {''.join([f'\\resumeItem{{{item}}}' for item in exp.get('description', [])])}
@@ -263,8 +264,8 @@ def create_latex_content(data):
     for edu in data.get('education', []):
         education.append(f"""
 \\resumeSubheading
-{{{edu.get('institution', '')}}}
-{{{edu.get('dates', '')}}}
+{{{edu.get('school', '')}}}
+{{{edu.get('date', '')}}}
 {{{edu.get('degree', '')}}}
 {{{edu.get('location', '')}}}
 """)
@@ -275,8 +276,7 @@ def create_latex_content(data):
     for proj in data.get('projects', []):
         projects.append(f"""
 \\resumeProjectHeading
-{{{proj.get('name', '')}}}
-{{{proj.get('dates', '')}}}
+{{{proj.get('name', '')}}} $|$ {{{proj.get('technologies', '')}}}
 \\resumeItemListStart
 \\resumeItem{{{proj.get('description', '')}}}
 \\resumeItemListEnd
@@ -284,7 +284,10 @@ def create_latex_content(data):
     template = template.replace('PROJECTS_PLACEHOLDER', '\n'.join(projects))
 
     # Skills Section
-    skills = ' $\\textbullet$ '.join(data.get('skills', []))
+    # skills = ' $\\textbullet$ '.join(data.get('skills', []))
+    # skills = 
+    # template = template.replace('SKILLS_PLACEHOLDER', skills)
+    skills = data.get('skills', '').replace(',', ' \\textbullet{} ')
     template = template.replace('SKILLS_PLACEHOLDER', skills)
 
     return template

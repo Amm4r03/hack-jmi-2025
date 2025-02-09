@@ -24,7 +24,7 @@
       // Assuming the backend provides a direct PDF download URL
       window.open(pdfUrl, '_blank');
     }
-  </script>
+</script>
   
   <div class="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
     <div class="flex justify-between items-center mb-4">
@@ -64,6 +64,7 @@
   
     <div class="preview-container h-[600px] border rounded-lg">
       {#if activeTab === 'pdf'}
+        {console.log(pdfUrl)}
         <iframe
           title="PDF Preview"
           src={pdfUrl}
